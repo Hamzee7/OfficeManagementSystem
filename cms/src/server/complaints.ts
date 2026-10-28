@@ -321,7 +321,13 @@ export function transitionComplaint(
   db.transaction(() => {
     const r = db.prepare(`UPDATE complaints SET ${sets}, version = version + 1 WHERE id = ? AND version = ?`).run(...Object.values(patch), complaintId, c.version);
     if (r.changes === 0) throw new HttpError(409, "Someone else changed this complaint. Reload and try again.");
-    recordEvent(db, { orgId, complaintId, type: "status", actorKind: actor.kind === "user" ? "user" : actor.kind === "complainant" ? "complainant" : "system", actorId: ctx?.userId, actorName: ctx?.name, visibility: "public", body: opts.comment?.trim() ? opts.comment.trim() : `Status changed to ${to}`, data: { from: c.status, to }, now });
+    // What the complainant can see: staff comments on a status change are internal by default, so that
+    // working notes never leak. Only the complainant's own reopen reason and the reason for a rejection are shared.
+    const comment = opts.comment?.trim();
+    const shareComment = !!comment && (actor.kind === "complainant" || to === "Rejected");
+    const kind = actor.kind === "user" ? "user" : actor.kind === "complainant" ? "complainant" : "system";
+    recordEvent(db, { orgId, complaintId, type: "status", actorKind: kind, actorId: ctx?.userId, actorName: ctx?.name, visibility: "public", body: shareComment ? comment : `Status changed to ${to}`, data: { from: c.status, to }, now });
+    if (comment && !shareComment && actor.kind === "user") recordEvent(db, { orgId, complaintId, type: "comment", actorKind: "user", actorId: ctx?.userId, actorName: ctx?.name, visibility: "internal", body: comment, now });
     audit(db, { orgId, actorId: ctx?.userId ?? null, actorLabel: ctx?.email ?? actor.kind, action: "complaint.status", entityType: "complaint", entityId: complaintId, data: { from: c.status, to }, now });
   }).immediate();
   void org;
@@ -353,7 +359,7 @@ export function proposeResolution(db: DB, ctx: AuthContext, complaintId: string,
   const t = text.trim();
   if (t.length < 10) throw new HttpError(422, "Describe the proposed resolution (at least 10 characters).");
   if (c.status === "Pending Approval") throw new HttpError(409, "A resolution is already waiting for approval.");
-  if (c.status === "Investigation in Progress") transitionComplaint(db, ctx, complaintId, "Resolution Proposed", { comment: t, now });
+  if (c.status === "Investigation in Progress") transitionComplaint(db, ctx, complaintId, "Resolution Proposed", { comment: "Resolution drafted.", now });
   else if (c.status !== "Resolution Proposed") throw new HttpError(409, `A resolution cannot be proposed while the complaint is "${c.status}".`);
   transitionComplaint(db, ctx, complaintId, "Pending Approval", { comment: "Resolution submitted for approval.", now });
   const id = newId();
@@ -580,4 +586,39 @@ export function getComplaintDetail(db: DB, ctx: AuthContext, id: string, now = D
 
 export function minutesSince(db: DB, orgId: string, from: number, to: number): number {
   return businessMinutesBetween(from, to, loadCalendar(db, orgId));
+}
+
+// ---------------------------------------------------------------- bulk actions
+
+export interface BulkResult { id: string; ref?: string; ok: boolean; error?: string }
+
+/**
+ * Apply one action to several complaints. Each complaint goes through the exact same checks as a single
+ * action (permissions, workflow rules, conflicts of interest), so a bulk run can never do more than a person could one by one.
+ */
+export function bulkAction(
+  db: DB,
+  ctx: AuthContext,
+  input: { ids: string[]; action: "assign" | "transition"; userId?: string; to?: Status; comment?: string; confirm: boolean },
+  now = Date.now(),
+): BulkResult[] {
+  if (!input.confirm) throw new HttpError(422, "Confirm the bulk action before running it.");
+  const ids = [...new Set(input.ids)];
+  if (ids.length === 0) throw new HttpError(422, "Select at least one complaint.");
+  if (ids.length > 50) throw new HttpError(422, "Bulk actions are limited to 50 complaints at a time.");
+  return ids.map((id) => {
+    const row = getComplaintRow(db, ctx.orgId, id);
+    try {
+      if (input.action === "assign") {
+        if (!input.userId) throw new HttpError(422, "Choose who to assign to.");
+        assignComplaint(db, ctx, id, input.userId, input.comment ?? "Bulk assignment", now);
+      } else {
+        if (!input.to) throw new HttpError(422, "Choose a status.");
+        transitionComplaint(db, ctx, id, input.to, { comment: input.comment, now });
+      }
+      return { id, ref: row?.ref, ok: true };
+    } catch (e) {
+      return { id, ref: row?.ref, ok: false, error: e instanceof HttpError ? e.message : "Failed." };
+    }
+  });
 }

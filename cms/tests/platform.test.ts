@@ -332,3 +332,20 @@ describe("scale", () => {
 });
 
 void addUser;
+
+describe("backup and recovery", () => {
+  it("produces a verified copy that can be opened and used after the original is gone", async () => {
+    const { backupTo } = await import("@/server/backup");
+    const { default: Database } = await import("better-sqlite3");
+    const w = makeWorld();
+    const r = sub(w);
+    const file = path.join(tmp, "restore-test.db");
+    const res = await backupTo(w.db, file);
+    expect(res).toEqual({ integrity: "ok", auditChainOk: true });
+    w.db.close();
+    const restored = new Database(file);
+    const row = restored.prepare("SELECT ref, title FROM complaints WHERE id = ?").get(r.id) as any;
+    expect(row.ref).toBe(r.ref);
+    restored.close();
+  });
+});

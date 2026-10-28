@@ -269,3 +269,32 @@ describe("access control", () => {
     expect(() => assignComplaint(w.db, manager, r.id, o.users.handler, "x")).toThrow(/cannot be assigned/);
   });
 });
+
+describe("nothing internal reaches the complainant", () => {
+  it("keeps proposed resolutions and staff comments out of the public timeline until approved or explicitly shared", () => {
+    const w = makeWorld();
+    const r = submit(w);
+    const m = ctxFor(w, "manager", T0), m2 = ctxFor(w, "manager2", T0);
+    transitionComplaint(w.db, m, r.id, "Investigation in Progress", { comment: "PRIVATE-REASON customer is difficult", now: T0 + 1 });
+    const a = proposeResolution(w.db, m, r.id, "UNAPPROVED-OUTCOME refund everything", T0 + 2);
+    const access = () => verifyAccess(w.db, r.ref, r.accessCode, "6.6.6.6", T0 + 10);
+    let json = JSON.stringify(publicView(w.db, access()));
+    expect(json).not.toContain("PRIVATE-REASON");
+    expect(json).not.toContain("UNAPPROVED-OUTCOME");
+    expect(publicView(w.db, access()).resolution).toBeNull();
+    decideApproval(w.db, m2, a, true, "INTERNAL-APPROVAL-NOTE", T0 + 3);
+    json = JSON.stringify(publicView(w.db, access()));
+    expect(json).not.toContain("INTERNAL-APPROVAL-NOTE");
+    expect(publicView(w.db, access()).resolution).toContain("UNAPPROVED-OUTCOME"); // visible only once approved
+    // the staff view still has the internal comment
+    expect(JSON.stringify(getComplaintDetail(w.db, m, r.id).events)).toContain("PRIVATE-REASON");
+  });
+  it("shows a rejection reason to the complainant on purpose", () => {
+    const w = makeWorld();
+    const r = submit(w);
+    const m = ctxFor(w, "manager");
+    transitionComplaint(w.db, m, r.id, "Under Review", { comment: "Re-triage: may be out of scope" });
+    transitionComplaint(w.db, m, r.id, "Rejected", { comment: "This is outside our scope; please contact the regulator." });
+    expect(JSON.stringify(publicView(w.db, verifyAccess(w.db, r.ref, r.accessCode, "7.7.7.7")))).toContain("outside our scope");
+  });
+});
