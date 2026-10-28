@@ -1,0 +1,22 @@
+# Web server + background worker sharing one data volume. Copy .env.example to .env first and set SESSION_SECRET.
+services:
+  web:
+    build: .
+    env_file: .env
+    environment: { DATABASE_PATH: /data/cms.db, STORAGE_DIR: /data/files }
+    ports: ["3000:3000"]
+    volumes: ["cms-data:/data"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+  worker:
+    build: .
+    command: ["npx", "tsx", "src/worker/run.ts"]
+    env_file: .env
+    environment: { DATABASE_PATH: /data/cms.db, STORAGE_DIR: /data/files }
+    volumes: ["cms-data:/data"]
+    restart: unless-stopped
+    depends_on: [web]
+volumes:
+  cms-data:

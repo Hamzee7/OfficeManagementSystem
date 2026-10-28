@@ -17,6 +17,7 @@ $router->post('profile/update','User\ChangeProfile@update');
 $router->get('profile/edit','User\ChangeProfile@index');
 $router->resource('users','User\UserController');
 
+$router->post('complaints/{complaint}/comments','ComplaintController@comment');
 $router->resource('complaints','ComplaintController');
 
 $router->post('attendances/get-by-month-and-year', 'Attendance\GetByMonthAndYearForUser');
