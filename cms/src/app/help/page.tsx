@@ -1,8 +1,12 @@
+import { ThemeStyle } from "@/components/Theme";
+
 export const metadata = { title: "Help and support" };
+export const dynamic = "force-dynamic";
 
 export default function Help() {
   return (
     <main className="portal-main">
+      <ThemeStyle />
       <h1>Help and support</h1>
       <section className="card stack"><h2>Reporting a problem</h2><p>You do not need an account. Use <a href="/submit">Submit a complaint</a>. You will get a reference and a private access code. Keep both: you need them to <a href="/track">track your complaint</a>.</p></section>
       <section className="card stack"><h2>Lost your access code?</h2><p>The code is shown once and cannot be recovered, because it is stored only in scrambled form. If you gave an email address, check your confirmation email. Otherwise contact the organization and quote your reference. They can confirm identity and help you.</p></section>

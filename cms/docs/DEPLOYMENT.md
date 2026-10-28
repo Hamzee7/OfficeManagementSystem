@@ -8,7 +8,7 @@ cd cms
 npm ci
 cp .env.example .env            # then edit: set SESSION_SECRET (openssl rand -hex 32) and APP_URL (your https address)
 npm run build
-npm run create-admin -- --org "Your Company" --email you@company.com --name "Your Name" --password "A-Str0ng-Password" --timezone Asia/Karachi
+npm run create-admin -- --org "Your Company" --email you@company.com --name "Your Name" --password "A-Str0ng-Password" --timezone Asia/Karachi --brand "#54B435" --pill 1
 npm start                       # web server on port 3000
 npm run worker                  # SECOND process: SLA checks, escalations, email delivery
 ```

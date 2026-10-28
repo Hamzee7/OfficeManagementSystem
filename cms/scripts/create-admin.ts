@@ -1,5 +1,5 @@
 /**
- * Create the first organization and administrator.
+ * Create the first organization and administrator. Optional: --brand "#54B435" --pill 1
  *   npm run create-admin -- --org "Acme Ltd" --email you@acme.com --name "Your Name" --password "Str0ngPassword!" --timezone Asia/Karachi
  */
 import { getDb, newId } from "../src/server/db";
@@ -22,6 +22,7 @@ const existing = db.prepare("SELECT id FROM organizations WHERE slug = ?").get(s
 const { orgId, roleIds } = existing
   ? { orgId: existing.id, roleIds: Object.fromEntries((db.prepare("SELECT key, id FROM roles WHERE org_id = ?").all(existing.id) as any[]).map((r) => [r.key, r.id])) }
   : createOrganization(db, { name: orgName, slug, timezone });
+if (!existing && args.get("brand")) db.prepare("UPDATE organizations SET brand_color = ?, pill_buttons = ? WHERE id = ?").run(args.get("brand")!.toLowerCase(), args.get("pill") === "1" ? 1 : 0, orgId);
 const first = !(db.prepare("SELECT 1 FROM users LIMIT 1").get());
 const roleId = first ? roleIds.super_admin : roleIds.org_admin;
 const now = Date.now();

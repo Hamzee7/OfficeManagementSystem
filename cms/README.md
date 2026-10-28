@@ -30,6 +30,7 @@ For a real installation follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) (uses `n
 | Communication | Templates, outbox with retries/back-off/idempotency, in-app notifications, communication history; internal notes can never reach complainants |
 | Dashboards & reports | Precise KPI definitions, period comparison, filters, charts with text alternatives, department performance, workload, recurring themes, CSV export (audited, capped, PII-aware), saved reports |
 | Search & lists | Global search, filters, sorting, pagination, saved views, bulk actions with confirmation |
+| Branding & security | Per-organization brand colour (text colours auto-adjusted for readability), pill buttons, logo upload; two-step sign-in with authenticator apps and recovery codes, optionally required for all staff |
 | Governance | Hash-chained append-only audit log with integrity check, data retention, backups verified by test |
 | Assistant | Rule-based suggestions: category, priority/sensitivity flag, summary, tone, draft replies, similar complaints, knowledge articles. Suggestions only; decisions recorded; can be switched off |
 

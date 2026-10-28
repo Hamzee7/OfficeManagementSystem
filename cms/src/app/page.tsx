@@ -9,6 +9,7 @@ import { VolumeChart } from "@/components/charts";
 import { MiniList } from "@/components/Lists";
 import { Empty } from "@/components/ui";
 import { parseRange } from "@/server/dates";
+import { ThemeStyle, BrandMark } from "@/components/Theme";
 
 export const dynamic = "force-dynamic";
 
@@ -44,10 +45,12 @@ export default async function Home() {
 
 function Landing() {
   const db = getDb();
-  const org = db.prepare("SELECT name FROM organizations ORDER BY created_at LIMIT 1").get() as { name: string } | undefined;
+  const first = db.prepare("SELECT id FROM organizations ORDER BY created_at LIMIT 1").get() as { id: string } | undefined;
+  const org = first ? loadOrg(db, first.id) : undefined;
   return (
     <div className="portal">
-      <header className="portal-head"><div className="brand"><span className="brand-mark" aria-hidden="true">{(org?.name ?? "C").slice(0, 1)}</span><span>{org?.name ?? "Complaints"}</span></div><a href="/login" className="btn">Staff sign in</a></header>
+      <ThemeStyle />
+      <header className="portal-head"><div className="brand"><BrandMark name={org?.name ?? "C"} hasLogo={!!org?.hasLogo} /><span>{org?.name ?? "Complaints"}</span></div><a href="/login" className="btn">Staff sign in</a></header>
       <main className="portal-main">
         <div className="hero"><h1>We want to hear when something goes wrong</h1><p>Every complaint gets a reference number, an owner and a deadline, and you can follow progress at any time.</p></div>
         <div className="grid g2">

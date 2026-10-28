@@ -5,6 +5,8 @@ import { loadOrg, loadTransitions, DEFAULT_TEMPLATES } from "@/server/org";
 import { PERMISSIONS, PERMISSION_LABELS } from "@/lib/permissions";
 import { ApiForm, Field } from "@/components/client";
 import { Empty } from "@/components/ui";
+import { MfaPanel } from "@/components/MfaClient";
+import { BrandingForm } from "@/components/BrandingClient";
 
 export const metadata = { title: "Settings" };
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -14,7 +16,7 @@ export default async function Settings({ searchParams }: { searchParams: Promise
   if (!auth) redirect("/login");
   const can = (p: string) => auth.perms.has(p);
   const tabs = [
-    ["general", "Organization", can("org.manage")], ["categories", "Categories & SLA", can("categories.manage")], ["workflow", "Workflow", can("workflow.manage")],
+    ["general", "Organization", can("org.manage")], ["branding", "Branding & security", can("org.manage")], ["categories", "Categories & SLA", can("categories.manage")], ["workflow", "Workflow", can("workflow.manage")],
     ["roles", "Roles", can("roles.manage")], ["templates", "Message templates", can("org.manage")], ["integrations", "Integrations", can("org.manage")], ["account", "My account", true],
   ].filter((t) => t[2]) as [string, string, boolean][];
   const { tab: t } = await searchParams;
@@ -31,7 +33,8 @@ export default async function Settings({ searchParams }: { searchParams: Promise
       {tab === "roles" && <Roles orgId={auth.orgId} canPlatform={can("platform.manage")} />}
       {tab === "templates" && <Templates orgId={auth.orgId} />}
       {tab === "integrations" && <Integrations />}
-      {tab === "account" && <Account />}
+      {tab === "branding" && <Branding orgId={auth.orgId} />}
+      {tab === "account" && <Account mfaEnabled={auth.mfaEnabled} orgId={auth.orgId} />}
       {can("platform.manage") && tab === "general" && <NewOrg />}
     </>
   );
@@ -186,14 +189,32 @@ function Integrations() {
   );
 }
 
-function Account() {
+function Branding({ orgId }: { orgId: string }) {
+  const o = loadOrg(getDb(), orgId);
   return (
-    <section className="card stack" style={{ maxWidth: 480 }}><h2>Change password</h2>
+    <div className="stack-lg">
+      <section className="card stack"><h2>Look and feel</h2><p className="muted">Colours and logo appear on every page, including the public complaint form. Text colours are adjusted automatically so they stay readable.</p>
+        <BrandingForm brandColor={o.brandColor} pillButtons={o.pillButtons} hasLogo={o.hasLogo} slug={o.slug} />
+      </section>
+      <section className="card stack"><h2>Sign-in security</h2>
+        <ApiForm path="/api/admin/branding" resetOnSuccess={false} transform={undefined} submitLabel="Save"><label className="check"><input type="checkbox" name="requireMfa" defaultChecked={o.requireMfa} /><span><strong>Require two-step sign-in for all staff</strong><br /><span className="hint">Everyone who works with complaints must set up an authenticator app at their next sign-in. Turn this on after telling your team.</span></span></label></ApiForm>
+      </section>
+    </div>
+  );
+}
+
+function Account({ mfaEnabled, orgId }: { mfaEnabled: boolean; orgId: string }) {
+  const locked = loadOrg(getDb(), orgId).requireMfa;
+  return (
+    <div className="stack-lg" style={{ maxWidth: 560 }}>
+    <section className="card stack"><h2>Two-step sign-in</h2><MfaPanel enabled={mfaEnabled} locked={locked} /></section>
+    <section className="card stack"><h2>Change password</h2>
       <ApiForm path="/api/auth/password" submitLabel="Change password">
         <Field label="Current password" htmlFor="cp"><input id="cp" name="current" type="password" className="input" autoComplete="current-password" required /></Field>
         <Field label="New password" hint="At least 10 characters with upper case, lower case and a number. Other devices are signed out." htmlFor="np"><input id="np" name="next" type="password" className="input" autoComplete="new-password" required minLength={10} /></Field>
       </ApiForm>
     </section>
+    </div>
   );
 }
 

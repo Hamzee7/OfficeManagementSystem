@@ -5,6 +5,7 @@ import { visibleNav } from "@/lib/permissions";
 import { loadOrg } from "@/server/org";
 import type { AuthContext } from "@/server/auth";
 import { Icon } from "./ui";
+import { ThemeStyle, BrandMark } from "./Theme";
 import { NavLinks, SidebarToggle, SignOut, OrgSwitcher } from "./shell-client";
 
 export async function Shell({ auth, children }: { auth: AuthContext; children: ReactNode }) {
@@ -22,9 +23,10 @@ export async function Shell({ auth, children }: { auth: AuthContext; children: R
 
   return (
     <div className={`shell${collapsed ? " collapsed" : ""}`}>
+      <ThemeStyle orgId={auth.orgId} />
       <a href="#main" className="skip">Skip to content</a>
       <aside className="sidebar" aria-label="Main navigation">
-        <div className="brand"><div className="brand-mark" aria-hidden="true">{org.name.slice(0, 1).toUpperCase()}</div><span className="name">{org.name}</span></div>
+        <div className="brand"><BrandMark name={org.name} hasLogo={org.hasLogo} /><span className="name">{org.name}</span></div>
         <NavLinks items={items.filter((n, i, a) => a.findIndex((x) => x.href === n.href) === i)} />
         <div className="side-foot"><SidebarToggle collapsed={collapsed} /></div>
       </aside>

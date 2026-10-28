@@ -6,6 +6,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
+
+// Authenticator-app code generator (RFC 6238), independent of the application code.
+function totp(base32, ms = Date.now()) {
+  const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"; let bits = 0, val = 0; const bytes = [];
+  for (const c of base32.replace(/[\s=]/g, "")) { val = (val << 5) | A.indexOf(c); bits += 5; if (bits >= 8) { bytes.push((val >>> (bits - 8)) & 255); bits -= 8; } }
+  const buf = Buffer.alloc(8); buf.writeBigUInt64BE(BigInt(Math.floor(ms / 30000)));
+  const h = crypto.createHmac("sha1", Buffer.from(bytes)).update(buf).digest(); const o = h[h.length - 1] & 15;
+  return String((((h[o] & 0x7f) << 24) | (h[o + 1] << 16) | (h[o + 2] << 8) | h[o + 3]) % 1e6).padStart(6, "0");
+}
+// 1x1 PNG
+const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
 const require = createRequire(import.meta.url);
 const { chromium } = require("playwright");
@@ -192,6 +204,71 @@ try {
     assert.ok(np, "new team member could not sign in");
     await np.ctx.close();
     await ctx.close();
+  });
+
+  await step("branding: brand colour, pill buttons and logo apply to public and staff pages", async () => {
+    const { ctx, page } = await signIn(browser, "admin@demo.test");
+    await page.goto(BASE + "/settings?tab=branding");
+    await page.evaluate(() => { const i = document.querySelector("#bc"); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set; set.call(i, "#54b435"); i.dispatchEvent(new Event("input", { bubbles: true })); });
+    await page.check("input[name=pillButtons]");
+    await page.click("button:has-text('Save colours')"); await page.waitForSelector("text=Saved.");
+    await page.setInputFiles("#logo", { name: "logo.png", mimeType: "image/png", buffer: PNG });
+    await page.waitForSelector("img[alt='Current logo']");
+    await page.goto(BASE + "/complaints/new");
+    const bg = await page.locator(".btn.primary").first().evaluate((el) => getComputedStyle(el).backgroundColor);
+    assert.equal(bg, "rgb(84, 180, 53)", "brand colour not applied");
+    const radius = await page.locator(".btn.primary").first().evaluate((el) => getComputedStyle(el).borderTopLeftRadius);
+    assert.ok(parseFloat(radius) > 100, "pill buttons not applied");
+    const pub = await browser.newContext(); const pp = await pub.newPage();
+    await pp.goto(BASE + "/submit");
+    assert.equal(await pp.locator(".portal-head img").count(), 1, "logo missing on the public form");
+    const logo = await pp.request.get(BASE + "/api/brand/logo"); assert.equal(logo.status(), 200);
+    await pub.close(); await ctx.close();
+  });
+
+  await step("two-step sign-in: enrol an authenticator, sign out, sign in with a code; a wrong code is refused", async () => {
+    const { ctx, page } = await signIn(browser, "auditor@demo.test");
+    await page.goto(BASE + "/settings?tab=account");
+    await page.click("button:has-text('Set up two-step sign-in')");
+    await page.waitForSelector("summary:has-text('Cannot scan')"); await page.click("summary:has-text('Cannot scan')");
+    const secret = (await page.locator(".ref-box").first().textContent()).trim();
+    await page.fill("#mfa-code", "000000"); await page.click("button:has-text('Turn on')");
+    await page.waitForSelector("text=not valid");
+    await page.fill("#mfa-code", totp(secret)); await page.click("button:has-text('Turn on')");
+    await page.waitForSelector("text=Save your recovery codes");
+    const recovery = await page.locator("li.ref-box").allTextContents(); assert.equal(recovery.length, 8);
+    await ctx.close();
+    // fresh browser: password alone does not get in
+    const c2 = await browser.newContext(); const p2 = await c2.newPage();
+    await p2.goto(BASE + "/login"); await p2.fill("#email", "auditor@demo.test"); await p2.fill("#password", PASS);
+    await p2.click("button:has-text('Sign in')"); await p2.waitForSelector("#code");
+    assert.equal((await (await p2.request.get(BASE + "/api/complaints")).status()), 401, "session granted before the second step");
+    await p2.fill("#code", "123456"); await p2.click("button:has-text('Verify and sign in')"); await p2.waitForSelector("text=not valid");
+    // use a recovery code (the authenticator code was already used for enrolment in this 30 s window)
+    await p2.fill("#code", recovery[0].trim()); await p2.click("button:has-text('Verify and sign in')");
+    await p2.waitForURL((u) => !u.pathname.startsWith("/login")); await p2.waitForSelector("text=Overview, text=complaints", { timeout: 8000 }).catch(() => {});
+    assert.equal((await p2.request.get(BASE + "/api/complaints")).status(), 200);
+    await c2.close();
+  });
+
+  await step("an organization that requires two-step sign-in blocks staff who have not set it up", async () => {
+    const { ctx, page } = await signIn(browser, "admin@demo.test");
+    await page.goto(BASE + "/settings?tab=branding");
+    await page.check("input[name=requireMfa]"); await page.click("section:has(input[name=requireMfa]) button:has-text('Save')");
+    await page.waitForSelector("text=lock yourself out"); // the administrator must enrol first
+    await page.goto(BASE + "/settings?tab=account");
+    await page.click("button:has-text('Set up two-step sign-in')");
+    await page.waitForSelector("summary:has-text('Cannot scan')"); await page.click("summary:has-text('Cannot scan')");
+    const adminSecret = (await page.locator(".ref-box").first().textContent()).trim();
+    await page.fill("#mfa-code", totp(adminSecret)); await page.click("button:has-text('Turn on')"); await page.waitForSelector("text=Save your recovery codes");
+    await page.goto(BASE + "/settings?tab=branding");
+    await page.check("input[name=requireMfa]"); await page.click("section:has(input[name=requireMfa]) button:has-text('Save')"); await page.waitForSelector("text=Saved.");
+    await ctx.close();
+    const h = await signIn(browser, "handler@demo.test");
+    await h.page.goto(BASE + "/complaints");
+    await h.page.waitForSelector("h1:has-text('Set up two-step sign-in')");
+    const api = await h.page.request.get(BASE + "/api/complaints"); assert.equal(api.status(), 403);
+    await h.ctx.close();
   });
 
   async function ownerEmail() {

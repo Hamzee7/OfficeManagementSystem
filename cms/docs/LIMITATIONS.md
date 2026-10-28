@@ -13,7 +13,7 @@ Read this before going live. Nothing here is hidden: the app shows "Not configur
 | Malware scanning of uploads | Not implemented. Uploads are type-checked by content only. |
 
 ## Functional gaps against the full specification
-* **Multi-factor authentication** is not implemented.
+* **Two-step sign-in** (authenticator app, recovery codes, optional organization-wide requirement) is implemented. Not implemented: hardware security keys / passkeys, SMS codes, remembering trusted devices.
 * **Scheduled / distributed reports** (email PDF/CSV on a schedule) are not implemented. Reports can be saved as named filters and exported to CSV on demand. **PDF export** is not implemented.
 * **Server-side drafts / autosave for signed-in users**: the public form autosaves in the browser (this device only), not on the server. Complaint status "Draft" exists but is unused.
 * **Rich notifications**: in-app and email only. No push, no messaging-app integrations. Users cannot yet set per-channel notification preferences.

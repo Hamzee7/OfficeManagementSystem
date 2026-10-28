@@ -44,6 +44,7 @@ export function route<P>(opts: { auth?: boolean }, fn: (c: any) => Promise<unkno
       const db = getDb();
       const auth = await currentAuth();
       if (opts.auth !== false && !auth) throw new HttpError(401, "Please sign in.");
+      if (auth?.mfaSetupRequired && !req.nextUrl.pathname.startsWith("/api/auth/")) throw new HttpError(403, "Your organization requires two-step sign-in. Set it up before continuing.", { code: "mfa_setup_required" });
       const out = await fn({ db, auth, ip: clientIp(req), params: await extra.params, req });
       if (out instanceof Response) return out;
       return NextResponse.json(out ?? { ok: true }, { headers: { "Cache-Control": "no-store" } });

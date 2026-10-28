@@ -1,4 +1,4 @@
-import { openDb, newId, type DB } from "@/server/db";
+import { openDb, newId, sha256, type DB } from "@/server/db";
 import { createOrganization } from "@/server/org";
 import { hashPassword, authenticate, login, type AuthContext } from "@/server/auth";
 
@@ -45,8 +45,15 @@ export function makeWorld(opts: { slug?: string; db?: DB; tz?: string } = {}): W
 export function ctxFor(w: World, who: string, now = Date.now()): AuthContext {
   const row = w.db.prepare("SELECT email FROM users WHERE id = ?").get(w.users[who]) as { email: string };
   const r = login(w.db, row.email, PASSWORD, { ip: `10.0.0.${Math.floor(Math.random() * 250)}`, now });
-  if (!r.ok) throw new Error("login failed in test: " + r.error);
-  const ctx = authenticate(w.db, r.token, now);
+  let token: string;
+  if (r.ok) token = r.token;
+  else if (r.mfaRequired) {
+    // Test shortcut for users who have two-step sign-in: create the session directly (the real flow is tested in mfa-theme.test.ts).
+    token = `test-${Math.random().toString(36).slice(2)}`;
+    const u = w.db.prepare("SELECT org_id FROM users WHERE id = ?").get(w.users[who]) as { org_id: string };
+    w.db.prepare("INSERT INTO sessions (id, user_id, active_org_id, created_at, last_seen_at, expires_at) VALUES (?,?,?,?,?,?)").run(sha256(token), w.users[who], u.org_id, now, now, now + 3600_000);
+  } else throw new Error("login failed in test: " + r.error);
+  const ctx = authenticate(w.db, token, now);
   if (!ctx) throw new Error("authenticate failed in test");
   return ctx;
 }

@@ -16,6 +16,10 @@ export interface OrgSettings {
   atRiskPct: number;
   refPrefix: string;
   retentionDays: number;
+  brandColor: string;
+  pillButtons: boolean;
+  hasLogo: boolean;
+  requireMfa: boolean;
   escalation: EscalationSettings;
 }
 
@@ -25,7 +29,7 @@ export function loadOrg(db: DB, orgId: string): OrgSettings {
   return {
     id: o.id, name: o.name, slug: o.slug, timezone: o.timezone,
     allowAnonymous: !!o.allow_anonymous, aiEnabled: !!o.ai_enabled,
-    assignmentStrategy: o.assignment_strategy, atRiskPct: o.at_risk_pct, refPrefix: o.ref_prefix, retentionDays: o.retention_days,
+    assignmentStrategy: o.assignment_strategy, atRiskPct: o.at_risk_pct, refPrefix: o.ref_prefix, retentionDays: o.retention_days, brandColor: o.brand_color, pillButtons: !!o.pill_buttons, hasLogo: !!o.logo_key, requireMfa: !!o.require_mfa,
     escalation: { criticalUnassignedMinutes: o.critical_unassigned_minutes, unresolvedBreachMultiple: 2, reopenThreshold: o.reopen_threshold },
   };
 }

@@ -1,6 +1,7 @@
 import { getDb } from "@/server/db";
 import { loadOrg } from "@/server/org";
 import { SubmitWizard } from "@/components/PortalClient";
+import { ThemeStyle, BrandMark } from "@/components/Theme";
 
 export const metadata = { title: "Submit a complaint" };
 export const dynamic = "force-dynamic";
@@ -18,17 +19,18 @@ export default async function Submit({ searchParams }: { searchParams: Promise<{
     locations: db.prepare("SELECT id, name FROM locations WHERE org_id = ? AND active = 1 ORDER BY name").all(row.id) as any[],
   };
   return (
-    <PortalFrame name={org.name}>
+    <PortalFrame name={org.name} orgId={row.id} hasLogo={org.hasLogo} slug={org.slug}>
       <div className="hero"><h1>Tell us what went wrong</h1><p>It takes about three minutes. You will get a reference number and a private code to follow progress.</p></div>
       <SubmitWizard options={options} />
     </PortalFrame>
   );
 }
 
-function PortalFrame({ children, name = "Complaints" }: { children: React.ReactNode; name?: string }) {
+function PortalFrame({ children, name = "Complaints", orgId, hasLogo = false, slug }: { children: React.ReactNode; name?: string; orgId?: string; hasLogo?: boolean; slug?: string }) {
   return (
     <div className="portal">
-      <header className="portal-head"><a href="/" className="brand"><span className="brand-mark" aria-hidden="true">{name.slice(0, 1)}</span><span>{name}</span></a><nav className="row"><a href="/track">Track a complaint</a><a href="/login">Staff sign in</a></nav></header>
+      {orgId && <ThemeStyle orgId={orgId} />}
+      <header className="portal-head"><a href="/" className="brand"><BrandMark name={name} hasLogo={hasLogo} slug={slug} /><span>{name}</span></a><nav className="row"><a href="/track">Track a complaint</a><a href="/login">Staff sign in</a></nav></header>
       <main className="portal-main">{children}</main>
     </div>
   );

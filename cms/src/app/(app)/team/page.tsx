@@ -11,7 +11,7 @@ export default async function Team() {
   if (!auth) redirect("/login");
   if (!auth.perms.has("users.manage")) redirect("/");
   const db = getDb();
-  const users = db.prepare(`SELECT u.id, u.name, u.email, u.is_active, u.available, u.location, r.name AS role, d.name AS dept,
+  const users = db.prepare(`SELECT u.id, u.name, u.email, u.is_active, u.available, u.location, u.mfa_enabled, r.name AS role, d.name AS dept,
     (SELECT COUNT(*) FROM complaints c WHERE c.assignee_id = u.id AND c.status NOT IN ('Resolved','Closed','Rejected','Draft')) AS load
     FROM users u JOIN roles r ON r.id = u.role_id LEFT JOIN departments d ON d.id = u.department_id WHERE u.org_id = ? ORDER BY u.is_active DESC, u.name`).all(auth.orgId) as any[];
   const roles = db.prepare("SELECT id, name, key FROM roles WHERE org_id = ? ORDER BY is_system DESC, name").all(auth.orgId) as any[];
@@ -22,10 +22,11 @@ export default async function Team() {
       <div className="page-head"><div><h1>Team management</h1><p className="sub">Deactivating someone signs them out immediately and removes their access.</p></div></div>
       <section className="card flush">
         {users.length === 0 ? <Empty title="No users" /> : (
-          <div className="table-wrap"><table className="stack-table"><thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Open cases</th><th>Availability</th><th>Status</th><th /></tr></thead><tbody>
+          <div className="table-wrap"><table className="stack-table"><thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Open cases</th><th>Availability</th><th>Two-step</th><th>Status</th><th /></tr></thead><tbody>
             {users.map((u) => (
               <tr key={u.id}><td><strong>{u.name}</strong><div className="muted small">{u.email}</div></td><td>{u.role}</td><td>{u.dept ?? "–"}</td><td>{u.load}</td>
                 <td>{u.is_active ? <ActionButton path={`/api/admin/users/${u.id}`} method="PATCH" body={{ available: !u.available }} className="btn sm">{u.available ? "Available" : "Away"}</ActionButton> : "–"}</td>
+                <td>{u.mfa_enabled ? <span className="badge st-Resolved">On</span> : <span className="badge st-Closed">Off</span>}{u.mfa_enabled && u.id !== auth.userId ? <ActionButton path={`/api/admin/users/${u.id}/mfa-reset`} className="btn sm ghost" confirm="Reset">Reset</ActionButton> : null}</td>
                 <td>{u.is_active ? <span className="badge st-Resolved">Active</span> : <span className="badge st-Closed">Deactivated</span>}</td>
                 <td>{u.id !== auth.userId && <ActionButton path={`/api/admin/users/${u.id}`} method="PATCH" body={{ isActive: !u.is_active }} className={`btn sm ${u.is_active ? "danger" : ""}`} confirm={u.is_active ? "Deactivate" : undefined}>{u.is_active ? "Deactivate" : "Reactivate"}</ActionButton>}</td></tr>
             ))}

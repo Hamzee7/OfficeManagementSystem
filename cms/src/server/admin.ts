@@ -46,6 +46,26 @@ export function updateUser(db: DB, ctx: AuthContext, userId: string, p: { roleId
   audit(db, { orgId: ctx.orgId, actorId: ctx.userId, actorLabel: ctx.email, action: p.isActive === false ? "user.deactivated" : "user.updated", entityType: "user", entityId: userId, data: { fields: Object.keys(p) }, now });
 }
 
+export function resetUserMfa(db: DB, ctx: AuthContext, userId: string): void {
+  requirePerm(ctx, "users.manage");
+  const u = db.prepare("SELECT id FROM users WHERE id = ? AND org_id = ?").get(userId, ctx.orgId);
+  if (!u) throw new HttpError(404, "User not found.");
+  db.prepare("UPDATE users SET mfa_enabled = 0, mfa_secret = NULL, mfa_last_step = 0 WHERE id = ?").run(userId);
+  db.prepare("DELETE FROM mfa_recovery_codes WHERE user_id = ?").run(userId);
+  revokeUserSessions(db, userId);
+  audit(db, { orgId: ctx.orgId, actorId: ctx.userId, actorLabel: ctx.email, action: "mfa.reset_by_admin", entityType: "user", entityId: userId });
+}
+
+export function saveBranding(db: DB, ctx: AuthContext, i: { brandColor?: string; pillButtons?: boolean; requireMfa?: boolean }): void {
+  requirePerm(ctx, "org.manage");
+  if (i.brandColor !== undefined && !/^#[0-9a-fA-F]{6}$/.test(i.brandColor)) throw new HttpError(422, "Use a colour like #54B435.");
+  if (i.requireMfa && !ctx.mfaEnabled) throw new HttpError(422, "Set up your own two-step sign-in first (Settings, My account), otherwise you would lock yourself out.");
+  db.prepare("UPDATE organizations SET brand_color = COALESCE(?, brand_color), pill_buttons = COALESCE(?, pill_buttons), require_mfa = COALESCE(?, require_mfa) WHERE id = ?").run(
+    i.brandColor?.toLowerCase() ?? null, i.pillButtons == null ? null : +i.pillButtons, i.requireMfa == null ? null : +i.requireMfa, ctx.orgId,
+  );
+  audit(db, { orgId: ctx.orgId, actorId: ctx.userId, actorLabel: ctx.email, action: "org.branding_changed", data: { fields: Object.keys(i) } });
+}
+
 export function changeOwnPassword(db: DB, ctx: AuthContext, current: string, next: string, verify: (pw: string, hash: string) => boolean): void {
   const u = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(ctx.userId) as { password_hash: string };
   if (!verify(current, u.password_hash)) throw new HttpError(403, "Current password is incorrect.");

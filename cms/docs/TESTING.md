@@ -15,4 +15,6 @@ What is covered
 
 Not tested automatically: real SMTP delivery, SMS, Docker image build, behaviour under PostgreSQL (not supported yet), accessibility with real screen readers (keyboard and semantics were built in; an assistive-technology audit is still needed), load from many simultaneous users.
 
-Current results when this was written: 55 unit/integration tests passing, 10 end-to-end steps passing, TypeScript clean, production build succeeds, axe-core (WCAG 2.0/2.1/2.2 A and AA rules) reported no violations on the 20 pages scanned. Automated checks find only part of the accessibility problems; manual keyboard and screen-reader testing is still required.
+* **Two-step sign-in and branding** (`tests/mfa-theme.test.ts` and the last three e2e steps): TOTP official vectors, drift and replay, recovery codes single-use and regenerable, lockout, challenge expiry, admin reset, organization requirement and self-lockout guard, readable button/link colours for any brand colour, logo and colours on public and staff pages.
+
+Current results when this was written: 66 unit/integration tests passing, 13 end-to-end steps passing, TypeScript clean, production build succeeds, axe-core (WCAG 2.0/2.1/2.2 A and AA rules) reported no violations on the 20 pages scanned. Automated checks find only part of the accessibility problems; manual keyboard and screen-reader testing is still required.
